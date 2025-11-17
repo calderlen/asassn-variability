@@ -266,12 +266,14 @@ def naive_dip_finder(
             pbar = tqdm(desc=f"{b} peak search", unit="obj", leave=False)
             scheduled = 0
 
+            # flushes chunk_size amount of data when it's reached
             def flush_if_needed():
                 if out_format == "csv" and len(rows_buffer) >= chunk_size:
                     mode = "a" if os.path.exists(out_path) else "w"
                     header = not os.path.exists(out_path)
                     pd.DataFrame(rows_buffer).to_csv(out_path, index=False, mode=mode, header=header)
                     rows_buffer.clear()
+
 
             def drain_some(all_pending):
                 done_now = 0

@@ -62,6 +62,5 @@ def peak_search(
     """
     need to create GP baseline first before starting on this
     """
-    
 
     pass

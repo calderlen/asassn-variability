@@ -22,7 +22,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--n-workers",
         type=int,
-        default=64,
+        default=10,
         help="Parallel processes",
     )
     parser.add_argument(

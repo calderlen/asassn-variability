@@ -3,7 +3,105 @@ import pandas as pd
 #from celerite2 import terms, GaussianProcess
 #from scipy.optimize import minimize
 
-# rolling helpers
+
+def global_mean_baseline(
+    df,
+    t_col="JD",         
+    mag_col="mag",
+    err_col="error",
+):
+    df_out = df.copy()
+    for col in ("baseline", "resid", "sigma_resid"):
+        if col not in df_out.columns:
+            df_out[col] = np.nan
+
+    m = df_out.loc[:, mag_col].to_numpy(dtype=float)
+    e = df_out.loc[:, err_col].to_numpy(dtype=float)
+
+    baseline = np.full_like(m, np.nan, dtype=float)
+    resid = np.full_like(m, np.nan, dtype=float)
+
+    good = np.isfinite(m)
+    if good.any():
+        mean_mag = float(np.mean(m[good]))
+        baseline[:] = mean_mag
+        resid = m - mean_mag
+
+    resid_good = np.isfinite(resid)
+    if resid_good.any():
+        resid_vals = resid[resid_good]
+        med_resid = float(np.median(resid_vals))
+        mad = float(1.4826 * np.median(np.abs(resid_vals - med_resid)))
+    else:
+        med_resid = np.nan
+        mad = np.nan
+
+    e_good = np.isfinite(e)
+    e_med = float(np.median(e[e_good])) if e_good.any() else np.nan
+
+    mad_num = mad if np.isfinite(mad) else 0.0
+    e_med_num = e_med if np.isfinite(e_med) else 0.0
+    robust_std = float(np.sqrt(mad_num**2 + e_med_num**2))
+    robust_std = max(robust_std, 1e-6)
+
+    sigma_resid = resid / robust_std
+
+    df_out.loc[:, "baseline"] = baseline
+    df_out.loc[:, "resid"] = resid
+    df_out.loc[:, "sigma_resid"] = sigma_resid
+
+    return df_out
+
+def global_median_baseline(
+    df,
+    t_col="JD",         
+    mag_col="mag",
+    err_col="error",
+):
+    df_out = df.copy()
+    for col in ("baseline", "resid", "sigma_resid"):
+        if col not in df_out.columns:
+            df_out[col] = np.nan
+
+    m = df_out.loc[:, mag_col].to_numpy(dtype=float)
+    e = df_out.loc[:, err_col].to_numpy(dtype=float)
+
+    baseline = np.full_like(m, np.nan, dtype=float)
+    resid = np.full_like(m, np.nan, dtype=float)
+
+    good = np.isfinite(m)
+    if good.any():
+        median_mag = float(np.median(m[good]))
+        baseline[:] = median_mag
+        resid = m - median_mag
+
+    resid_good = np.isfinite(resid)
+    if resid_good.any():
+        resid_vals = resid[resid_good]
+        med_resid = float(np.median(resid_vals))
+        mad = float(1.4826 * np.median(np.abs(resid_vals - med_resid)))
+    else:
+        med_resid = np.nan
+        mad = np.nan
+
+    e_good = np.isfinite(e)
+    e_med = float(np.median(e[e_good])) if e_good.any() else np.nan
+
+    mad_num = mad if np.isfinite(mad) else 0.0
+    e_med_num = e_med if np.isfinite(e_med) else 0.0
+    robust_std = float(np.sqrt(mad_num**2 + e_med_num**2))
+    robust_std = max(robust_std, 1e-6)
+
+    sigma_resid = resid / robust_std
+
+    df_out.loc[:, "baseline"] = baseline
+    df_out.loc[:, "resid"] = resid
+    df_out.loc[:, "sigma_resid"] = sigma_resid
+
+    return df_out
+
+
+# rolling time window helper functions for subsequent baselines
 
 def rolling_time_median(jd, mag, days=300.0, min_points=10, min_days=30.0, past_only=True):
     """
@@ -105,104 +203,6 @@ def rolling_time_mad(jd, resid, days=200.0, min_points=10, min_days=20.0, past_o
             window /= 2.0
             
     return out
-
-# baseline builders
-
-def global_mean_baseline(
-    df,
-    t_col="JD",         
-    mag_col="mag",
-    err_col="error",
-):
-    df_out = df.copy()
-    for col in ("baseline", "resid", "sigma_resid"):
-        if col not in df_out.columns:
-            df_out[col] = np.nan
-
-    m = df_out.loc[:, mag_col].to_numpy(dtype=float)
-    e = df_out.loc[:, err_col].to_numpy(dtype=float)
-
-    baseline = np.full_like(m, np.nan, dtype=float)
-    resid = np.full_like(m, np.nan, dtype=float)
-
-    good = np.isfinite(m)
-    if good.any():
-        mean_mag = float(np.mean(m[good]))
-        baseline[:] = mean_mag
-        resid = m - mean_mag
-
-    resid_good = np.isfinite(resid)
-    if resid_good.any():
-        resid_vals = resid[resid_good]
-        med_resid = float(np.median(resid_vals))
-        mad = float(1.4826 * np.median(np.abs(resid_vals - med_resid)))
-    else:
-        med_resid = np.nan
-        mad = np.nan
-
-    e_good = np.isfinite(e)
-    e_med = float(np.median(e[e_good])) if e_good.any() else np.nan
-
-    mad_num = mad if np.isfinite(mad) else 0.0
-    e_med_num = e_med if np.isfinite(e_med) else 0.0
-    robust_std = float(np.sqrt(mad_num**2 + e_med_num**2))
-    robust_std = max(robust_std, 1e-6)
-
-    sigma_resid = resid / robust_std
-
-    df_out.loc[:, "baseline"] = baseline
-    df_out.loc[:, "resid"] = resid
-    df_out.loc[:, "sigma_resid"] = sigma_resid
-
-    return df_out
-
-def global_median_baseline(
-    df,
-    t_col="JD",         
-    mag_col="mag",
-    err_col="error",
-):
-    df_out = df.copy()
-    for col in ("baseline", "resid", "sigma_resid"):
-        if col not in df_out.columns:
-            df_out[col] = np.nan
-
-    m = df_out.loc[:, mag_col].to_numpy(dtype=float)
-    e = df_out.loc[:, err_col].to_numpy(dtype=float)
-
-    baseline = np.full_like(m, np.nan, dtype=float)
-    resid = np.full_like(m, np.nan, dtype=float)
-
-    good = np.isfinite(m)
-    if good.any():
-        median_mag = float(np.median(m[good]))
-        baseline[:] = median_mag
-        resid = m - median_mag
-
-    resid_good = np.isfinite(resid)
-    if resid_good.any():
-        resid_vals = resid[resid_good]
-        med_resid = float(np.median(resid_vals))
-        mad = float(1.4826 * np.median(np.abs(resid_vals - med_resid)))
-    else:
-        med_resid = np.nan
-        mad = np.nan
-
-    e_good = np.isfinite(e)
-    e_med = float(np.median(e[e_good])) if e_good.any() else np.nan
-
-    mad_num = mad if np.isfinite(mad) else 0.0
-    e_med_num = e_med if np.isfinite(e_med) else 0.0
-    robust_std = float(np.sqrt(mad_num**2 + e_med_num**2))
-    robust_std = max(robust_std, 1e-6)
-
-    sigma_resid = resid / robust_std
-
-    df_out.loc[:, "baseline"] = baseline
-    df_out.loc[:, "resid"] = resid
-    df_out.loc[:, "sigma_resid"] = sigma_resid
-
-    return df_out
 
 def per_camera_mean_baseline(
     df,

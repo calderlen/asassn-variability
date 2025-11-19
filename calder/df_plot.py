@@ -37,6 +37,7 @@ asassn_raw_columns = [
 
 PLOT_OUTPUT_DIR = Path("/data/poohbah/1/assassin/lenhart/asassn-variability/calder/lc_plots")
 DETECTION_RESULTS_FILE = Path("calder/detection_results.csv")
+JD_OFFSET = 2458000.0
 DEFAULT_DAT_PATHS = [
     "/data/poohbah/1/assassin/rowan.90/lcsv2/13_13.5/lc18_cal/377957522430.dat",
     "/data/poohbah/1/assassin/rowan.90/lcsv2/13_13.5/lc22_cal/42950993887.dat",
@@ -198,6 +199,11 @@ def plot_one_lc(
     mask &= df["saturated"] == 0
     mask &= df["good_bad"] == 1
     df = df.loc[mask].copy()
+    if df.empty:
+        print(f"Warning: No valid rows found in {dat_path}")
+        return None
+
+    df["JD_plot"] = df["JD"] - JD_OFFSET
     
     if df.empty:
         print(f"Warning: No valid rows found in {dat_path}")
@@ -231,7 +237,7 @@ def plot_one_lc(
             color = camera_colors[cam]
             marker = band_markers.get(band, "o")
             ax.errorbar(
-                subset["JD"],
+                subset["JD_plot"],
                 subset["mag"],
                 yerr=subset["error"],
                 fmt=marker,
@@ -252,13 +258,13 @@ def plot_one_lc(
         if legend_handles:
             ax.legend(handles=list(legend_handles.values()), title="Cameras", loc="best", fontsize="small")
 
-    axes[-1].set_xlabel("JD")
+    axes[-1].set_xlabel(f"JD - {int(JD_OFFSET)} [d]")
 
     asassn_id = dat_path.stem
     category = metadata.get("category") if metadata else None
-    jd_start = float(df["JD"].min())
-    jd_end = float(df["JD"].max())
-    jd_label = f"JD {jd_start:.0f}-{jd_end:.0f}"
+    jd_start = float(df["JD_plot"].min())
+    jd_end = float(df["JD_plot"].max())
+    jd_label = f"JD - {int(JD_OFFSET)} [{jd_start:.0f}:{jd_end:.0f}]"
     
     if source_name is None and metadata:
         source_name = metadata.get("source")
@@ -349,6 +355,7 @@ def _plot_lc_with_residuals_df(
     data = data[np.isfinite(data["JD"]) & np.isfinite(data["mag"])]
     if data.empty:
         raise ValueError("No finite JD/mag values available for plotting.")
+    data["JD_plot"] = data["JD"] - JD_OFFSET
 
     preferred_order = [1, 0]
     bands = [band for band in preferred_order if (data["v_g_band"] == band).any()]
@@ -389,6 +396,8 @@ def _plot_lc_with_residuals_df(
         raw_ax.grid(True, which="both", linestyle="--", alpha=0.3)
         # Force JD labels on top axis
         raw_ax.tick_params(top=True, labeltop=True, bottom=False, labelbottom=False)
+        raw_ax.set_xlabel(f"JD - {int(JD_OFFSET)} [d]")
+        raw_ax.xaxis.set_label_position("top")
 
         # --- BOTTOM PLOT (RESIDUALS) ---
         resid_ax.grid(True, which="both", linestyle="--", alpha=0.3)
@@ -403,12 +412,12 @@ def _plot_lc_with_residuals_df(
         resid_ax.axhline(-0.3, color="black", linestyle="-", linewidth=0.8, zorder=1)
         
         resid_ax.fill_between(
-            [band_df["JD"].min(), band_df["JD"].max()],
+            [band_df["JD_plot"].min(), band_df["JD_plot"].max()],
             0.3, 100, # Fill "down" (visually) for dips > 0.3
             color="lightgrey", alpha=0.5, zorder=0
         )
         resid_ax.fill_between(
-            [band_df["JD"].min(), band_df["JD"].max()],
+            [band_df["JD_plot"].min(), band_df["JD_plot"].max()],
             -0.3, -100, # Fill "up" (visually) for negative deviations < -0.3
             color="lightgrey", alpha=0.45, zorder=0
         )
@@ -425,7 +434,7 @@ def _plot_lc_with_residuals_df(
             
             # Top Panel
             raw_ax.errorbar(
-                cam_subset["JD"],
+                cam_subset["JD_plot"],
                 cam_subset["mag"],
                 yerr=cam_subset["error"],
                 fmt=marker,
@@ -441,7 +450,7 @@ def _plot_lc_with_residuals_df(
             
             # Bottom Panel - zorder=3 puts points ON TOP of grey regions
             resid_ax.scatter(
-                cam_subset["JD"],
+                cam_subset["JD_plot"],
                 cam_subset["resid"],
                 s=10,
                 color=color,

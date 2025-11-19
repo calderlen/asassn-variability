@@ -8,7 +8,7 @@ Follow changes in the [`CHANGELOG.md`](CHANGELOG.md)
 
 - `calder/`
   - `lc_dips.py` – peak-search engine (`naive_dip_finder`) that walks the ASAS-SN light-curve archive and writes `peaks_<mag_bin>_<timestamp>.{csv,parquet}`.
-  - `df_filter_naive.py` – end-to-end filtering pipeline (`filter_csv`) plus individual filter helpers (dip fraction, multi-camera, VSX class enrichment, periodicity checks, etc.).
+  - `df_filter.py` – end-to-end filtering pipeline (`filter_csv`) plus individual filter helpers (dip fraction, multi-camera, VSX class enrichment, periodicity checks, etc.).
   - `reproduce_candidates.py` – targeted reproduction harness that reads `lc_manifest` outputs and verifies historical candidates.
   - `build_manifest.py` – utility that maps `source_id → (mag_bin, index_csv, lc_dir, dat_path)` so reproduction runs can skip directory scans.
   - `script_search_naive.py` – thin CLI wrapper around `naive_dip_finder` for full-bin searches.

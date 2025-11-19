@@ -843,130 +843,33 @@ def _run_one_file(
 
 
 def _build_cli_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Run filter_csv on one peaks CSV or a directory of peaks_*.csv files."
-    )
-    parser.add_argument(
-        "csv_path",
-        type=Path,
-        help="Input peaks CSV path OR a directory containing peaks_*.csv files.",
-    )
-    parser.add_argument(
-        "--files",
-        nargs="+",
-        default=None,
-        help="Specific file globs within the directory (e.g., 'peaks_12_5_13_*.csv').",
-    )
-    parser.add_argument(
-        "--include",
-        action="append",
-        default=None,
-        help="Additional basename globs to include; can be given multiple times.",
-    )
-    parser.add_argument(
-        "--exclude",
-        action="append",
-        default=None,
-        help="Basename globs to exclude; can be given multiple times.",
-    )
-    parser.add_argument(
-        "--latest-per-bin",
-        action="store_true",
-        help="If multiple files exist per mag bin, keep only the latest timestamp per bin.",
-    )
-    parser.add_argument(
-        "--no-combined",
-        action="store_true",
-        help="Do not write a combined CSV when processing a directory.",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="List the files that would be processed and exit.",
-    )
-
+    parser = argparse.ArgumentParser(description="Run filter_csv on one peaks CSV or a directory of peaks_*.csv files.")
+    parser.add_argument("csv_path", type=Path, help="Input peaks CSV path OR a directory containing peaks_*.csv files.")
+    parser.add_argument("--files", nargs="+", default=None, help="Specific file globs within the directory (e.g., 'peaks_12_5_13_*.csv').")
+    parser.add_argument("--include", action="append", default=None, help="Additional basename globs to include; can be given multiple times.")
+    parser.add_argument("--exclude", action="append", default=None, help="Basename globs to exclude; can be given multiple times.")
+    parser.add_argument("--latest-per-bin", action="store_true", help="If multiple files exist per mag bin, keep only the latest timestamp per bin.")
+    parser.add_argument("--dry-run", action="store_true", help="List the files that would be processed and exit.")
+    parser.add_argument("--output", type=Path, default=None, help="Destination CSV path when processing a single file.")
+    parser.add_argument("--output-dir", type=Path, default=None, help="Directory to place output CSVs (per-file and combined).")
+    parser.add_argument("--no-combined", action="store_true", help="Do not write a combined CSV when processing a directory.")
     parser.add_argument("--band", default="either", choices=["g", "v", "both", "either"])
-    parser.add_argument(
-        "--asassn-csv",
-        default="results_crossmatch/asassn_index_masked_concat_cleaned_20250926_1557.csv",
-    )
-    parser.add_argument(
-        "--vsx-csv",
-        default="results_crossmatch/vsx_cleaned_20250926_1557.csv",
-    )
+    parser.add_argument("--seed-workers", type=int, default=1, help="Worker processes for the initial candidates_with_peaks_naive stage.")
+    parser.add_argument("--asassn-csv", default="results_crossmatch/asassn_index_masked_concat_cleaned_20250926_1557.csv")
+    parser.add_argument("--vsx-csv", default="results_crossmatch/vsx_cleaned_20250926_1557.csv")
     parser.add_argument("--min-dip-fraction", type=float, default=0.66)
     parser.add_argument("--min-cameras", type=int, default=2)
     parser.add_argument("--max-power", type=float, default=0.5)
     parser.add_argument("--min-period", type=float, default=None)
     parser.add_argument("--max-period", type=float, default=None)
     parser.add_argument("--match-radius-arcsec", type=float, default=3.0)
-    parser.add_argument(
-        "--seed-workers",
-        type=int,
-        default=1,
-        help="Worker processes for the initial candidates_with_peaks_naive stage.",
-    )
-    parser.add_argument(
-        "--no-bns",
-        dest="apply_bns",
-        action="store_false",
-        default=True,
-        help="Disable the bright-nearby-star catalog join.",
-    )
-    parser.add_argument(
-        "--no-vsx-class",
-        dest="apply_vsx_class",
-        action="store_false",
-        default=True,
-        help="Disable VSX variability class enrichment.",
-    )
-    parser.add_argument(
-        "--no-dip-dom",
-        dest="apply_dip_dom",
-        action="store_false",
-        default=False,
-        help="Disable the dip-dominated fraction filter.",
-    )
-    parser.add_argument(
-        "--no-multi-camera",
-        dest="apply_multi_camera",
-        action="store_false",
-        default=True,
-        help="Disable the multi-camera filter.",
-    )
-    parser.add_argument(
-        "--no-periodic",
-        dest="apply_periodic",
-        action="store_false",
-        default=False,
-        help="Disable the periodicity filter.",
-    )
-    parser.add_argument(
-        "--no-sparse",
-        dest="apply_sparse",
-        action="store_false",
-        default=False,
-        help="Disable the sparse light-curve filter.",
-    )
-    parser.add_argument(
-        "--no-sigma",
-        dest="apply_sigma",
-        action="store_false",
-        default=False,
-        help="Disable the sigma-based depth filter.",
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=None,
-        help="Destination CSV path when processing a single file.",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=None,
-        help="Directory to place output CSVs (per-file and combined).",
-    )
+    parser.add_argument("--no-dip-dom", dest="apply_dip_dom", action="store_false", default=False, help="Disable the dip-dominated fraction filter.")
+    parser.add_argument("--no-multi-camera", dest="apply_multi_camera", action="store_false", default=True, help="Disable the multi-camera filter.")
+    parser.add_argument("--no-bns", dest="apply_bns", action="store_false", default=True, help="Disable the bright-nearby-star catalog join.")
+    parser.add_argument("--no-vsx-class", dest="apply_vsx_class", action="store_false", default=True, help="Disable VSX variability class enrichment.")
+    parser.add_argument("--no-periodic", dest="apply_periodic", action="store_false", default=False, help="Disable the periodicity filter.")
+    parser.add_argument("--no-sparse", dest="apply_sparse", action="store_false", default=False, help="Disable the sparse light-curve filter.")
+    parser.add_argument("--no-sigma", dest="apply_sigma", action="store_false", default=False, help="Disable the sigma-based depth filter.")
     return parser
 
 

@@ -113,95 +113,26 @@ asassn_index_columns = ['asassn_id',
     #    dip_fraction
     #    jump_fraction
 
-def process_and_plot_from_csv(csv_file_path, lc_data_dir='Updated_LC_data/'):
-    """
-    Reads a CSV of candidates, fetches their light curves, processes peaks, 
-    and generates the plots.
-    
-    """
-    
-    # 1. Read the CSV
-    df = pd.read_csv(csv_file_path)
-    
-    # 2. Build the dictionary structure required by the plotter
-    light_curve_dict = {}
-    
-    print(f"Processing {len(df)} sources from {csv_file_path}...")
-    
-    for index, row in df.iterrows():
-        asassn_id = str(row['Source_ID'])
-        
-        # Generate the ID string (e.g., J073234-200049)
-        # If 'Source' column exists, use it, otherwise calculate from RA/Dec
-        if 'Source' in row:
-            source_label = row['Source']
-        else:
-            # Fallback if Source name isn't in CSV, requires custom_id function
-            try:
-                source_label = custom_id(row['RA'], row['Dec'])
-            except NameError:
-                source_label = f"ID:{asassn_id}"
-
-        # 3. Read Light Curve Data
-        # Attempting to use your existing read function pattern
-        try:
-            # Assuming read_lightcurve_dat returns (v_data, g_data)
-            # You might need to adjust this if your function name is different
-            v_df, g_df = read_lightcurve_dat(asassn_id, lc_data_dir) 
-        except Exception as e:
-            print(f"Skipping {source_label} ({asassn_id}): Could not read LC data. {e}")
-            continue
-
-        # 4. Process g-band for peaks (Logic from your snippets)
-        peaks = []
-        if g_df is not None and not g_df.empty:
-            # Basic filtering (optional, based on your snippet)
-            # g_df = g_df.loc[g_df.Mag < 15].reset_index(drop=True) 
-            
-            mean_mag = np.mean(g_df['Mag'])
-            mag_avg = [i - mean_mag for i in g_df['Mag']]
-            
-            # Peak finding parameters from your code
-            found_peaks, _ = scipy.signal.find_peaks(
-                mag_avg, 
-                prominence=0.17, 
-                distance=25, 
-                height=0.3, 
-                width=2
-            )
-            peaks = [int(p) for p in found_peaks]
-
-        # 5. Determine Plot Limits (Optional auto-scaling)
-        # You can make this smarter, currently just None to let matplotlib autosale
-        y_lims = None
-        # If you want to strictly follow your snippet logic:
-        if g_df is not None and not g_df.empty:
-            y_min = 11 # Default or calculated from data
-            y_max = g_df['Mag'].max() + 0.5
-            # y_lims = (y_min, y_max) # Uncomment to enforce limits
-
-        # 6. Add to dictionary
-        light_curve_dict[source_label] = {
-            'g_data': g_df,
-            'v_data': v_df,
-            'peaks': peaks,
-            'title': f"{source_label} (ID: {asassn_id})",
-            # 'ylim': y_lims, # Add this if you calculated limits
-            # 'xlim': (-1700, 2950) # Add this if you want fixed x-axis like your snippets
-        }
-
-    # 7. Call the plotting function
-    if len(light_curve_dict) > 0:
-        plot_light_curves(light_curve_dict)
-    else:
-        print("No valid data found to plot.")
-
-
 
 
 def plot_light_curves(light_curve_dict, output_dir='plots'):
     """
-    Generates light curve plots from the processed dictionary.
+    Generates light curve plots from a dictionary of source data.
+
+    Parameters:
+    -----------
+    light_curve_dict : dict
+        A dictionary where keys are source identifiers (e.g., 'J073234-200049') 
+        and values are dictionaries containing:
+            - 'g_data': DataFrame with 'JD', 'Mag', 'Camera' columns for g-band.
+            - 'v_data': DataFrame with 'JD', 'Mag', 'Camera' columns for V-band (optional).
+            - 'peaks': List or Array of indices for detected peaks (optional).
+            - 'title': String for the plot title (e.g., 'Known Dipper').
+            - 'ylim': Tuple (min, max) for y-axis limits (optional).
+            - 'xlim': Tuple (min, max) for x-axis limits (optional).
+    
+    output_dir : str, optional
+        Directory to save the plots (if you were saving them). Currently displays them.
     """
 
     # Plotting Parameters
@@ -213,12 +144,11 @@ def plot_light_curves(light_curve_dict, output_dir='plots'):
     cols = 3
     rows = (num_plots + cols - 1) // cols  # Ceiling division to determine rows
     
-    # Adjust figure size dynamically based on rows
     fig = pl.figure(figsize=(16, 4 * rows))
     gs = fig.add_gridspec(rows, cols, hspace=0, wspace=0)
-    axs = gs.subplots(sharex=False, sharey=False) 
+    axs = gs.subplots(sharex=False, sharey=False) # ShareX/Y false to allow individual limits
     
-    # Handle single plot case (axs is not an array) vs multiple (axs is array)
+    # Flatten axes array for easy iteration, handle 1D case
     if num_plots > 1:
         axs_flat = axs.flatten()
     else:
@@ -228,41 +158,47 @@ def plot_light_curves(light_curve_dict, output_dir='plots'):
     for i, (source_name, data) in enumerate(light_curve_dict.items()):
         ax = axs_flat[i]
         
+        # Extract data
         g_df = data.get('g_data')
-        v_df = data.get('v_data')
+        v_df = data.get('v_data') # Optional, code mainly focused on g-band in first section
         peaks = data.get('peaks', [])
         title = data.get('title', source_name)
         
-        # Plot g-band
+        # Plot g-band data
         if g_df is not None and not g_df.empty:
             cams = g_df["Camera"].unique()
             for j, cam in enumerate(cams):
                 cam_data = g_df[g_df["Camera"] == cam]
+                # Standardize JD (offset by 2458000 as in your code)
                 cam_jd = cam_data["JD"].astype(float) - 2.458 * 10**6
                 cam_mag = cam_data["Mag"].astype(float)
+                
+                # Cycle colors if more cameras than colors
                 color = colors[j % len(colors)]
                 ax.scatter(cam_jd, cam_mag, color=color, alpha=0.6, marker='.', label=f'g-{cam}')
 
-        # Plot V-band
+        # Plot V-band data (if present and desired - based on second half of your code)
         if v_df is not None and not v_df.empty:
              cams = v_df["Camera"].unique()
              for j, cam in enumerate(cams):
                 cam_data = v_df[v_df["Camera"] == cam]
                 cam_jd = cam_data["JD"].astype(float) - 2.458 * 10**6
                 cam_mag = cam_data["Mag"].astype(float)
+                # Use same color palette
                 color = colors[j % len(colors)] 
                 ax.scatter(cam_jd, cam_mag, color=color, alpha=0.6, marker='.', label=f'V-{cam}')
 
-        # Vertical Lines for Peaks
+        # Plot Vertical Lines for Peaks
         if len(peaks) > 0 and g_df is not None:
-            # Calculate limits for lines if not provided
-            y_min = data.get('ylim', (g_df['Mag'].min(), g_df['Mag'].max()))[0]
-            y_max = data.get('ylim', (g_df['Mag'].min(), g_df['Mag'].max()))[1] + 0.2
+            # Determining y-min/max for vlines
+            y_min_line = g_df['Mag'].min() if 'ylim' not in data else data['ylim'][0]
+            y_max_line = g_df['Mag'].max() + 0.2 if 'ylim' not in data else data['ylim'][1]
             
             for peak_idx in peaks:
+                 # Ensure peak index is valid
                  if peak_idx < len(g_df):
                     peak_jd = g_df.iloc[peak_idx]['JD'] - 2.458 * 10**6
-                    ax.vlines(peak_jd, y_min, y_max, "k", alpha=0.4)
+                    ax.vlines(peak_jd, y_min_line, y_max_line, "k", alpha=0.4)
 
         # Formatting
         ax.invert_yaxis()
@@ -273,29 +209,50 @@ def plot_light_curves(light_curve_dict, output_dir='plots'):
         ax.tick_params('both', direction='in', length=4, width=1, which='minor')
         ax.yaxis.set_minor_locator(tick.MultipleLocator(0.1))
         
+        # Spines
         for axis in ['top', 'bottom', 'left', 'right']:
             ax.spines[axis].set_linewidth(1.5)
 
+        # Title
+        # Using y=1.0, pad=-40 based on your 'padnum' variable
         ax.set_title(title, y=1.0, pad=-40, size=15)
 
+        # Limits (if provided)
         if 'xlim' in data:
             ax.set_xlim(data['xlim'])
         if 'ylim' in data:
             ax.set_ylim(data['ylim'])
         
-        # Attempt Secondary Axis (Years)
+        # Secondary Axis (Year) - Optional, adds complexity but matches your code
         try:
             secax = ax.secondary_xaxis('top', functions=(lambda x: jd_to_year(x + 2.458*10**6), 
                                                          lambda x: year_to_jd(x) - 2.458*10**6))
             secax.xaxis.set_tick_params(direction='in', labelsize=12, pad=-18, length=6, width=1.5)
-        except:
-            pass
+            # Setting specific ticks if needed (mocking the loop behavior roughly)
+            # secax.set_xticks(np.arange(2014, 2026, 2)) 
+        except Exception as e:
+            pass # Skip if secondary axis functions aren't perfectly defined
+
 
     # Hide unused subplots
     for j in range(i + 1, len(axs_flat)):
         axs_flat[j].set_visible(False)
 
+    # Global Labels
     fig.supxlabel('Julian Date $- 2458000$ [d]', fontsize=30, y=0.05)
     fig.supylabel('Mag', fontsize=30, x=0.08)
 
     pl.show()
+
+# --- Example Usage ---
+# data_dict = {
+#     'J073234-200049': {
+#         'g_data': J0720g, 
+#         'peaks': peak_J0720, 
+#         'title': 'J0720 (Known)',
+#         'ylim': (13.5, 15.7),
+#         'xlim': (-1700, 2950)
+#     },
+#     ... add other sources ...
+# }
+# plot_light_curves(data_dict)

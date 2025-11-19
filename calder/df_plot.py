@@ -139,7 +139,7 @@ def read_asassn_dat(dat_path):
 def plot_dat_lightcurve(
     dat_path,
     *,
-    out_path=None,
+    out_path='/data/poohbah/1/assassin/lenhart/asassn-variability/calder/lc_plots',
     title=None,
     jd_offset=0.0,
     figsize=(10, 6),
@@ -210,13 +210,4 @@ def plot_dat_lightcurve(
     fig_title = title or f"{dat_path.stem} light curve"
     ax.set_title(fig_title)
 
-    if out_path is None:
-        out_path = dat_path.with_suffix(".png")
-    out_path = Path(out_path)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=200)
-    if show:
-        pl.show()
-    else:
-        pl.close(fig)
     return out_path

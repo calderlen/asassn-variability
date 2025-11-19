@@ -4,67 +4,119 @@ import pandas as pd
 #from scipy.optimize import minimize
 
 # rolling helpers
-def rolling_time_median (jd, mag, days=300.0, min_points=10, min_days=30.0, past_only=False):
-    """
-    Rolling median in time. If past_only=True, uses [t0 - days, t0] (one-sided) to avoid future-leakage into ongoing dips, i.e., causality is enforced. Halves 'days' down to min_days until >= min_points exist.
-    """
-    jd = np.asarray(jd, float)
-    mag = np.asarray(mag, float)
 
-    out = np.full_like(mag, np.nan, dtype=float)
-    for i, t0 in enumerate(jd):
+def rolling_time_median(jd, mag, days=300.0, min_points=10, min_days=30.0, past_only=True):
+    """
+    Rolling median in time using pure NumPy optimization (searchsorted).
+    If past_only=True, uses [t0 - days, t0] (one-sided) to avoid future-leakage into ongoing dips.
+    Halves 'days' down to min_days until >= min_points exist.
+    """
+    # Ensure arrays are sorted by time for searchsorted to work correctly
+    # (The calling functions usually do this, but we ensure it here for safety if needed, 
+    # though strict sorting is done in the calling function usually).
+    # For maximum speed, we assume jd is already sorted as per your pipeline logic.
+    
+    n = len(jd)
+    out = np.full(n, np.nan, dtype=float)
+    
+    # cast to numpy arrays just in case
+    jd = np.asarray(jd, dtype=float)
+    mag = np.asarray(mag, dtype=float)
+
+    for i in range(n):
+        t0 = jd[i]
         window = float(days)
+        
         while window >= float(min_days):
-        
             if past_only:
-                lo, hi = t0 - window, t0
+                lo_val, hi_val = t0 - window, t0
             else:
-                lo, hi = t0 - window/2.0, t0 + window/2.0
-    
-            mask = (jd >= lo) & (jd <= hi)
-            vals = mag[mask]
-            good = np.isfinite(vals)
-    
-            if int(good.sum()) >= int(min_points):
-                out[i] = np.nanmedian(vals[good])
+                half = window / 2.0
+                lo_val, hi_val = t0 - half, t0 + half
+
+            # BINARY SEARCH OPTIMIZATION (O(log N))
+            # Instead of boolean masking (O(N)), we find indices directly.
+            idx_start = np.searchsorted(jd, lo_val, side='left')
+            idx_end = np.searchsorted(jd, hi_val, side='right')
+            
+            # Slice the arrays (very fast view, no copy)
+            vals = mag[idx_start:idx_end]
+            
+            # Check for NaNs
+            # (In pure numpy, we must filter them explicitly before median)
+            finite_vals = vals[np.isfinite(vals)]
+            
+            if len(finite_vals) >= int(min_points):
+                out[i] = np.median(finite_vals)
                 break
-        
-        window /= 2.0
+            
+            window /= 2.0
+            
     return out
 
 def rolling_time_mad(jd, resid, days=200.0, min_points=10, min_days=20.0, past_only=True, add_err=None):
     """
-    Rolling robust scatter: 1.4826 * median(|resid - median(resid)|) in a time window. If past_only=True, uses [t0 - days, t0] (one-sided) to avoid future-leakage into ongoing dips, i.e., causality is enforced. Optionally add a typical photometric error in quadrature (array-like or scalar).
+    Rolling robust scatter (MAD) using pure NumPy optimization.
+    1.4826 * median(|resid - median(resid)|)
     """
-    jd = np.asarray(jd, float)
-    r = np.asarray(resid, float)
-    out = np.full_like(r, np.nan, dtype=float)
-    for i, t0 in enumerate(jd):
+    n = len(jd)
+    out = np.full(n, np.nan, dtype=float)
+    
+    jd = np.asarray(jd, dtype=float)
+    resid = np.asarray(resid, dtype=float)
+    
+    # Handle add_err (scalar or array)
+    # We prep this outside the loop to avoid overhead
+    if add_err is not None:
+        if np.ndim(add_err) > 0:
+            err_is_array = True
+            err_array = np.asarray(add_err, dtype=float)
+        else:
+            err_is_array = False
+            err_scalar = float(add_err)
+    
+    for i in range(n):
+        t0 = jd[i]
         window = float(days)
+        
         while window >= float(min_days):
             if past_only:
-                lo, hi = t0 - window, t0
+                lo_val, hi_val = t0 - window, t0
             else:
-                lo, hi = t0 - window/2.0, t0 + window/2.0
-            mask = (jd >= lo) & (jd <= hi) & np.isfinite(r)
-            vals = r[mask]
-            if int(vals.size) >= int(min_points):
-                med = np.median(vals)
-                mad = 1.4826 * np.median(np.abs(vals - med))
+                half = window / 2.0
+                lo_val, hi_val = t0 - half, t0 + half
+            
+            # BINARY SEARCH OPTIMIZATION
+            idx_start = np.searchsorted(jd, lo_val, side='left')
+            idx_end = np.searchsorted(jd, hi_val, side='right')
+            
+            vals = resid[idx_start:idx_end]
+            finite_vals = vals[np.isfinite(vals)]
+            
+            if len(finite_vals) >= int(min_points):
+                med = np.median(finite_vals)
+                # MAD calculation
+                mad = 1.4826 * np.median(np.abs(finite_vals - med))
+                
                 if add_err is not None:
-                # allow scalar or per-point error
-                    err_here = add_err[i] if np.ndim(add_err) else float(add_err)
-                    mad = float(np.sqrt(mad**2 + err_here**2))
+                    if err_is_array:
+                        err_here = err_array[i]
+                    else:
+                        err_here = err_scalar
+                    mad = np.sqrt(mad**2 + err_here**2)
+                
                 out[i] = max(mad, 1e-6)
                 break
+            
             window /= 2.0
+            
     return out
 
 # baseline builders
 
 def global_mean_baseline(
     df,
-    t_col="JD",         # this input is unnecessary, but just copying schema of per_camera_median_baseline for now
+    t_col="JD",         
     mag_col="mag",
     err_col="error",
 ):
@@ -112,7 +164,7 @@ def global_mean_baseline(
 
 def per_camera_mean_baseline(
     df,
-    t_col="JD",         # this input is unnecessary, but just copying schema of per_camera_median_baseline for now
+    t_col="JD",         
     mag_col="mag",
     err_col="error",
     cam_col="camera#",
@@ -280,46 +332,3 @@ def per_camera_trend_baseline(
         df_out.loc[idx, "sigma_resid"] = sigma_resid
 
     return df_out
-
-
-
-
-#def fit_gp_baseline(
-#    jd,
-#    mag,
-#    error,
-#    *,
-#    kernel="matern32
-#    sho_period = None,      # period of SHO
-#    sho_Q = 1.0,            # quality factor of SHO
-#    mean_mag = None,
-#    mask = None,            # this would be a boolean mask that filters out known dips
-#    jitter_init = 1.0,    
-#):
-    
-
-
-#def fit_gp_baseline(
-#        jd,
-#        mag,
-#        error, 
-#):
-#
-#    jd, mag, error = data
-
-#    # quasi-periodic term
-#    term1 = terms.SHOTerm(sigma, rho, tau)
-    
-#    # jitter term
-#    term2 = 
-
-#
-#
-#
-#    # maximize the likelihood function for the parameters of the kernel: mean, jitter, 
-#    
-#
-#    gp = celerite2.GaussianProcess(kernel, mean=)
-#    gp.compute(jd, yerr=error)
-#
-#    pass

@@ -35,7 +35,7 @@ asassn_raw_columns = [
                '90percenthigh']
 
 PLOT_OUTPUT_DIR = Path("/lc_plots")
-DETECTION_RESULTS_FILE = Path("calder/detection_results.csv")
+DETECTION_RESULTS_FILE = Path("detection_results.csv")
 JD_OFFSET = 2458000.0
 DEFAULT_DAT_PATHS = [
     "/data/poohbah/1/assassin/rowan.90/lcsv2/13_13.5/lc18_cal/377957522430.dat",
@@ -70,34 +70,34 @@ DEFAULT_DAT_PATHS = [
 ]
 
 SKYPATROL_CSV_PATHS = [
-    "calder/data/skypatrol2/120259184943-light-curves.csv",
-    "calder/data/skypatrol2/223339338105-light-curves.csv",
-    "calder/data/skypatrol2/231929175915-light-curves.csv",
-    "calder/data/skypatrol2/25770019815-light-curves.csv",
-    "calder/data/skypatrol2/266288137752-light-curves.csv",
-    "calder/data/skypatrol2/317827964025-light-curves.csv",
-    "calder/data/skypatrol2/326417831663-light-curves.csv",
-    "calder/data/skypatrol2/335007754417-light-curves.csv",
-    "calder/data/skypatrol2/352187470767-light-curves.csv",
-    "calder/data/skypatrol2/360777377116-light-curves.csv",
-    "calder/data/skypatrol2/377957522430-light-curves.csv",
-    "calder/data/skypatrol2/377958261591-light-curves.csv",
-    "calder/data/skypatrol2/412317159120-light-curves.csv",
-    "calder/data/skypatrol2/438086901547-light-curves.csv",
-    "calder/data/skypatrol2/438086977939-light-curves.csv",
-    "calder/data/skypatrol2/455267102087-light-curves.csv",
-    "calder/data/skypatrol2/463856535113-light-curves.csv",
-    "calder/data/skypatrol2/472447294641-light-curves.csv",
-    "calder/data/skypatrol2/515396514761-light-curves.csv",
-    "calder/data/skypatrol2/515397118400-light-curves.csv",
-    "calder/data/skypatrol2/532576686103-light-curves.csv",
-    "calder/data/skypatrol2/601296043597-light-curves.csv",
-    "calder/data/skypatrol2/60130040391-light-curves.csv",
-    "calder/data/skypatrol2/609886184506-light-curves.csv",
-    "calder/data/skypatrol2/635655234580-light-curves.csv",
-    "calder/data/skypatrol2/644245387906-light-curves.csv",
-    "calder/data/skypatrol2/661425129485-light-curves.csv",
-    "calder/data/skypatrol2/68720274411-light-curves.csv",
+    "data/skypatrol2/120259184943-light-curves.csv",
+    "data/skypatrol2/223339338105-light-curves.csv",
+    "data/skypatrol2/231929175915-light-curves.csv",
+    "data/skypatrol2/25770019815-light-curves.csv",
+    "data/skypatrol2/266288137752-light-curves.csv",
+    "data/skypatrol2/317827964025-light-curves.csv",
+    "data/skypatrol2/326417831663-light-curves.csv",
+    "data/skypatrol2/335007754417-light-curves.csv",
+    "data/skypatrol2/352187470767-light-curves.csv",
+    "data/skypatrol2/360777377116-light-curves.csv",
+    "data/skypatrol2/377957522430-light-curves.csv",
+    "data/skypatrol2/377958261591-light-curves.csv",
+    "data/skypatrol2/412317159120-light-curves.csv",
+    "data/skypatrol2/438086901547-light-curves.csv",
+    "data/skypatrol2/438086977939-light-curves.csv",
+    "data/skypatrol2/455267102087-light-curves.csv",
+    "data/skypatrol2/463856535113-light-curves.csv",
+    "data/skypatrol2/472447294641-light-curves.csv",
+    "data/skypatrol2/515396514761-light-curves.csv",
+    "data/skypatrol2/515397118400-light-curves.csv",
+    "data/skypatrol2/532576686103-light-curves.csv",
+    "data/skypatrol2/601296043597-light-curves.csv",
+    "data/skypatrol2/60130040391-light-curves.csv",
+    "data/skypatrol2/609886184506-light-curves.csv",
+    "data/skypatrol2/635655234580-light-curves.csv",
+    "data/skypatrol2/644245387906-light-curves.csv",
+    "data/skypatrol2/661425129485-light-curves.csv",
+    "data/skypatrol2/68720274411-light-curves.csv",
 ]
 
 DEFAULT_LC_PATHS = DEFAULT_DAT_PATHS + SKYPATROL_CSV_PATHS

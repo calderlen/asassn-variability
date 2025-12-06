@@ -324,6 +324,7 @@ def _biweight_gaussian_metrics(delta, jd, err, peak_idx, sigma_threshold):
     return out
 
 
+
 def _compute_biweight_delta(df, *, mag_col="mag", t_col="JD", err_col="error", biweight_c=6.0, eps=1e-6):
     """
     Compute biweight delta series (global location/scale) for a light curve.

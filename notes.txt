@@ -153,3 +153,8 @@ Single Eclipse Binaries      6     13
                 - Instead: dips last days–weeks, then recover.
                 - Example: J183153–284827 fades steeply over ~year and stays low for a time — still discrete compared to a decade-long slow fade.
 
+
+
+
+
+- need to add stellar flare filters

@@ -12,10 +12,133 @@ from scipy.signal import find_peaks
 
 from lc_utils import read_lc_dat, read_lc_raw, match_index_to_lc
 from lc_baseline import per_camera_trend_baseline
-from lc_dips import clean_lc, _biweight_gaussian_metrics
+from lc_dips import clean_lc
 
 MAG_BINS = ["12_12.5", "12.5_13", "13_13.5", "13.5_14", "14_14.5", "14.5_15"]
 
+
+def fit_paczynski_peaks(delta, jd, err, peak_idx, sigma_threshold):
+    """
+    Fit Paczynski-like microlensing curves to biweight-delta peaks and compute a heuristic score.
+
+    Model: amp / sqrt(1 + ((t - t0) / tE)^2)
+    FWHM for this model is 2 * sqrt(3) * tE.
+    """
+    out = {
+        "total_score": 0.0,
+        "best_score": 0.0,
+        "scores": [],
+        "fwhm": [],
+        "delta_peak": [],
+        "n_det": [],
+        "chi2_red": [],
+    }
+
+    if len(peak_idx) == 0 or delta.size == 0:
+        return out
+
+    delta = np.asarray(delta, float)
+    jd = np.asarray(jd, float)
+    err = np.asarray(err, float) if err is not None else np.full_like(delta, np.nan)
+
+    def paczynski(t, amp, t0, tE):
+        tE = np.maximum(tE, 1e-6)  # enforce positive timescale
+        return amp / np.sqrt(1.0 + ((t - t0) / tE) ** 2)
+
+    scores = []
+    fwhm_list = []
+    delta_peak_list = []
+    n_det_list = []
+    chi2_list = []
+
+    for p in peak_idx:
+        p = int(p)
+        delta_peak = float(delta[p]) if 0 <= p < len(delta) else 0.0
+
+        # find window where delta returns to <= 0.5 sigma_threshold on both sides
+        left = p
+        while left > 0 and delta[left] > 0.5 * sigma_threshold:
+            left -= 1
+        right = p
+        nmax = len(delta) - 1
+        while right < nmax and delta[right] > 0.5 * sigma_threshold:
+            right += 1
+
+        window = slice(left, right + 1)
+        t_win = jd[window]
+        d_win = delta[window]
+        n_det = len(d_win)
+        if n_det < 3:
+            # fallback, cannot fit
+            fwhm = 0.0
+            chi2_red = np.inf
+            score = 0.0
+        else:
+            amp0 = max(delta_peak, 0.0)
+            t0_0 = float(jd[p])
+            window_span = max(t_win.max() - t_win.min(), 1e-3)
+            tE0 = max(window_span / (2.0 * np.sqrt(3.0)), 0.5)
+            half_width = window_span / 2.0
+            try:
+                popt, _ = curve_fit(
+                    paczynski,
+                    t_win,
+                    d_win,
+                    p0=[amp0, t0_0, tE0],
+                    bounds=(
+                        [0.0, t_win.min() - half_width, 1e-3],
+                        [np.inf, t_win.max() + half_width, np.inf],
+                    ),
+                    maxfev=4000,
+                )
+                amp, t0_fit, tE = popt
+                tE = abs(tE)
+                model = paczynski(t_win, amp, t0_fit, tE)
+                resid = d_win - model
+                dof = max(n_det - 3, 1)
+                chi2 = float(np.nansum(resid**2))
+                chi2_red = chi2 / dof
+                fwhm = float(2.0 * np.sqrt(3.0) * tE)
+                # paper score term: (delta/2) * FWHM * N_det * (1 / chi2_red)
+                score = float(
+                    (max(delta_peak, 0.0) / 2.0)
+                    * max(fwhm, 0.0)
+                    * max(n_det, 1)
+                    / max(chi2_red, 1e-6)
+                )
+            except Exception:
+                fwhm = 0.0
+                chi2_red = np.inf
+                score = 0.0
+
+        scores.append(score)
+        fwhm_list.append(fwhm)
+        delta_peak_list.append(delta_peak)
+        n_det_list.append(n_det)
+        chi2_list.append(chi2_red)
+
+    N = len(scores)
+    if N > 0:
+        denom = float(np.log(N + 1) ** N)
+        denom = denom if np.isfinite(denom) and denom > 0 else 1.0
+        total_score = float(np.nansum(scores) / denom)
+        best_score = float(np.nanmax(scores))
+    else:
+        total_score = 0.0
+        best_score = 0.0
+
+    out.update(
+        {
+            "total_score": total_score,
+            "best_score": best_score,
+            "scores": scores,
+            "fwhm": fwhm_list,
+            "delta_peak": delta_peak_list,
+            "n_det": n_det_list,
+            "chi2_red": chi2_list,
+        }
+    )
+    return out
 
 def _compute_biweight_delta_peaks(df, *, mag_col="mag", t_col="JD", err_col="error", biweight_c=6.0, eps=1e-6):
     """
@@ -89,7 +212,7 @@ def process_record_microlensing(
             distance=int(peak_kwargs.get("distance", 50)),
         )
 
-        fit = _biweight_gaussian_metrics(
+        fit = fit_paczynski_peaks(
             delta,
             jd,
             df_band["error"].to_numpy(float) if "error" in df_band.columns else None,

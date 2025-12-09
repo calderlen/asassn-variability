@@ -13,6 +13,7 @@ from scipy.optimize import curve_fit
 from scipy.signal import find_peaks
 from astropy.stats import biweight_location, biweight_scale
 from lc_metrics import run_metrics, is_dip_dominated
+from lc_baseline import per_camera_median_baseline
 
 lc_dir_masked = "/data/poohbah/1/assassin/lenhart/code/calder/lcsv2_masked"
 
@@ -83,7 +84,7 @@ def empty_metrics(prefix):
 def gaussian(t, amp, mu, sig):
     return amp * np.exp(-0.5 * ((t - mu) / sig) ** 2)
 
-def mag_to_delta_space(
+def mag_to_delta(
     df,
     *,
     mag_col="mag",
@@ -92,10 +93,21 @@ def mag_to_delta_space(
     biweight_c=6.0,
     eps=1e-6,
     sign: float = 1.0,
+    baseline_func=None,
+    baseline_kwargs: dict | None = None,
 ):
     """
-    Biweight delta computation; `sign=+1` for dimmings (mag-R), `sign=-1` for brightenings (R-mag).
+    Compute delta relative to a robust baseline.
+
+    - Default: global biweight location/scale on the full light curve.
+    - If baseline_func is provided (e.g., from lc_baseline.py), it is called as
+      baseline_func(df, **baseline_kwargs). A "baseline" column is expected in the
+      returned DataFrame; residuals are mag - baseline. A robust scale on residuals
+      is then used in the denominator.
+    - sign=+1 for dimmings (mag - baseline), sign=-1 for brightenings.
     """
+    baseline_kwargs = baseline_kwargs or {}
+
     mag = np.asarray(df[mag_col], float) if mag_col in df.columns else np.array([], float)
     jd = np.asarray(df[t_col], float) if t_col in df.columns else np.array([], float)
     if err_col in df.columns:
@@ -103,16 +115,30 @@ def mag_to_delta_space(
     else:
         err = np.full_like(mag, np.nan, dtype=float)
 
-    finite_m = np.isfinite(mag)
-    R = float(biweight_location(mag[finite_m], c=biweight_c)) if finite_m.any() else np.nan
-    S = float(biweight_scale(mag[finite_m], c=biweight_c)) if finite_m.any() else 0.0
+    if baseline_func is None:
+        finite_m = np.isfinite(mag)
+        R = float(biweight_location(mag[finite_m], c=biweight_c)) if finite_m.any() else np.nan
+        S = float(biweight_scale(mag[finite_m], c=biweight_c)) if finite_m.any() else 0.0
+        resid = mag - R
+    else:
+        df_base = baseline_func(df, **baseline_kwargs)
+        baseline_vals = (
+            np.asarray(df_base["baseline"], float)
+            if "baseline" in df_base.columns
+            else np.asarray(df_base[mag_col], float)
+        )
+        resid = mag - baseline_vals
+        finite_r = np.isfinite(resid)
+        R = float(np.nanmedian(baseline_vals)) if np.isfinite(baseline_vals).any() else np.nan
+        S = float(biweight_scale(resid[finite_r], c=biweight_c)) if finite_r.any() else 0.0
+
     if not np.isfinite(S) or S < 0:
         S = 0.0
 
     err2 = np.where(np.isfinite(err), err**2, 0.0)
     denom = np.sqrt(err2 + S**2)
     denom = np.where(denom > 0, denom, eps)
-    delta = sign * (mag - R) / denom
+    delta = sign * resid / denom
     return delta, jd, R
 
 def score_dips_gaussian(delta, jd, err, peak_idx, sigma_threshold):
@@ -354,6 +380,8 @@ def lc_band_proc(
     peak_kwargs: dict,
     sigma_threshold: float,
     metrics_dip_threshold: float,
+    baseline_func=None,
+    baseline_kwargs: dict | None = None,
 ):
     """
     Analyze a single band: clean, delta-transform, peak find, fit/score, metrics.
@@ -378,7 +406,7 @@ def lc_band_proc(
 
     df_band = clean_lc(df_band).sort_values("JD").reset_index(drop=True)
     if mode == "peaks":
-        delta, jd, R = mag_to_delta_space(
+        delta, jd, R = mag_to_delta(
             df_band,
             mag_col=peak_kwargs.get("mag_col", "mag"),
             t_col=peak_kwargs.get("t_col", "JD"),
@@ -386,6 +414,8 @@ def lc_band_proc(
             biweight_c=peak_kwargs.get("biweight_c", 6.0),
             eps=peak_kwargs.get("eps", 1e-6),
             sign=-1.0,
+            baseline_func=baseline_func,
+            baseline_kwargs=baseline_kwargs,
         )
         fit = score_peaks_paczynski(
             delta,
@@ -408,7 +438,7 @@ def lc_band_proc(
         )
         metrics = empty_metrics("x")
     else:
-        delta, jd, R = mag_to_delta_space(
+        delta, jd, R = mag_to_delta(
             df_band,
             mag_col=peak_kwargs.get("mag_col", "mag"),
             t_col=peak_kwargs.get("t_col", "JD"),
@@ -416,6 +446,8 @@ def lc_band_proc(
             biweight_c=peak_kwargs.get("biweight_c", 6.0),
             eps=peak_kwargs.get("eps", 1e-6),
             sign=1.0,
+            baseline_func=baseline_func,
+            baseline_kwargs=baseline_kwargs,
         )
         peaks_idx, _ = find_peaks(
             np.nan_to_num(delta, nan=0.0, posinf=0.0, neginf=0.0),
@@ -468,6 +500,8 @@ def lc_proc(
     *,
     mode: str = "dips",
     peak_kwargs: dict | None = None,
+    baseline_func=None,
+    baseline_kwargs: dict | None = None,
     ) -> dict:
     """
     processes a single light curve
@@ -476,6 +510,7 @@ def lc_proc(
     mode="peaks": use (R-mag) biweight delta, Paczynski fits, no dip metrics.
     """
     peak_kwargs = dict(peak_kwargs or {})
+    baseline_func = baseline_func or per_camera_median_baseline
     sigma_threshold = float(peak_kwargs.get("sigma_threshold", 3.0))
     metrics_dip_threshold = sigma_threshold
 
@@ -492,6 +527,8 @@ def lc_proc(
         peak_kwargs=peak_kwargs,
         sigma_threshold=sigma_threshold,
         metrics_dip_threshold=metrics_dip_threshold,
+        baseline_func=baseline_func,
+        baseline_kwargs=baseline_kwargs,
     )
     v_res = lc_band_proc(
         dfv,
@@ -499,6 +536,8 @@ def lc_proc(
         peak_kwargs=peak_kwargs,
         sigma_threshold=sigma_threshold,
         metrics_dip_threshold=metrics_dip_threshold,
+        baseline_func=baseline_func,
+        baseline_kwargs=baseline_kwargs,
     )
 
     if not dfg.empty:
@@ -574,6 +613,8 @@ def excursion_finder(
     chunk_size=250000,
     max_inflight=None,
     peak_kwargs: dict | None = None,
+    baseline_func=None,
+    baseline_kwargs: dict | None = None,
     target_ids_by_bin: dict[str, set[str]] | None = None,
     records_by_bin: dict[str, list[dict[str, object]]] | None = None,
     return_rows: bool = False,
@@ -686,6 +727,8 @@ def excursion_finder(
                     rec,
                     mode=mode,
                     peak_kwargs=peak_kwargs,
+                    baseline_func=baseline_func,
+                    baseline_kwargs=baseline_kwargs,
                 )
             )
             scheduled += 1
@@ -703,6 +746,7 @@ def excursion_finder(
         _flush_rows(rows_buffer, force=True)
 
     peak_kwargs = dict(peak_kwargs or {})
+    baseline_func = baseline_func or per_camera_median_baseline
     if out_dir is None:
         out_dir = f"./results_{mode}"
     

@@ -7,7 +7,7 @@
     - sort light curves by JD (may be unnecessary?)
   - `empty_metrics`
     - creates empty dict for dip metrics for a single band
-  - `mag_to_delta_space`
+  - `mag_to_delta`
     - transforms the light curve to delta space with the biweight magntiude deviation, as done in https://arxiv.org/pdf/2508.03964
   - `gaussian`
   - `score_dips_gaussian`

@@ -469,8 +469,9 @@ def lc_band_proc(
         )
         stats = run_metrics(
             df_band,
-            baseline_func=None,
+            baseline_func=baseline_func,
             dip_threshold=metrics_dip_threshold,
+            **(baseline_kwargs or {}),
         )
         metrics = {f"x_{k}": v for k, v in stats.items()}
         metrics["x_is_dip_dominated"] = bool(is_dip_dominated(stats))

@@ -17,6 +17,7 @@ from lc_metrics import run_metrics, is_dip_dominated
 from lc_baseline import per_camera_median_baseline
 
 warnings.filterwarnings("ignore", message=".*Covariance of the parameters could not be estimated.*")
+warnings.filterwarnings("ignore", category=RuntimeWarning, module="scipy.optimize")
 
 lc_dir_masked = "/data/poohbah/1/assassin/lenhart/code/calder/lcsv2_masked"
 

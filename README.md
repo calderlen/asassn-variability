@@ -28,7 +28,7 @@ Pipeline to search for peaks and dips in ASAS-SN light curves
     - finds the first and last jd
     - outputs a dict summarizing information about the light curve
   - `excursion_finder`
-    - orchestrates parallel processing of light curves (record prep, worker submission, peak/dip analysis via `lc_proc`, and buffered writing of results)
+    - orchestrates parallel processing of light curves (record prep, worker submission, peak/dip analysis via `lc_proc`, and buffered writing of results) test
 - `calder/lc_excursions_naive.py`
   - `clean_lc`
   - `empty_metrics`

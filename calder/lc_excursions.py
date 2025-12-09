@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import os
+import warnings
 from datetime import datetime
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
@@ -14,6 +15,8 @@ from scipy.signal import find_peaks
 from astropy.stats import biweight_location, biweight_scale
 from lc_metrics import run_metrics, is_dip_dominated
 from lc_baseline import per_camera_median_baseline
+
+warnings.filterwarnings("ignore", message=".*Covariance of the parameters could not be estimated.*")
 
 lc_dir_masked = "/data/poohbah/1/assassin/lenhart/code/calder/lcsv2_masked"
 
